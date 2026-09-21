@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { YoutubeTranscript } from 'youtube-transcript';
 import { choice, noul, TypeSafeClient } from '@typesafe-ai/sdk';
 
+export const runtime = 'edge';
+
 const CHUNK_DURATION = 60 * 1000;
 const CHUNK_STRIDE = 10 * 1000;
 
