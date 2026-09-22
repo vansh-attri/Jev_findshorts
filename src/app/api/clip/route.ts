@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import { YoutubeTranscript } from 'youtube-transcript';
+import { YouTubeTranscriptApi, AutoPoTokenProvider } from 'youtube-transcript-nodejs';
 import { choice, noul, TypeSafeClient } from '@typesafe-ai/sdk';
-
-export const runtime = 'edge';
 
 const CHUNK_DURATION = 60 * 1000;
 const CHUNK_STRIDE = 10 * 1000;
@@ -41,7 +39,15 @@ export async function POST(req: Request) {
     // 1. Fetch transcript (force English if possible)
     let transcript;
     try {
-      transcript = await YoutubeTranscript.fetchTranscript(url, { lang: 'en' });
+      const provider = new AutoPoTokenProvider();
+      const api = new YouTubeTranscriptApi({ poTokenProvider: provider, poTokenFallback: true });
+      const fetchedTranscript = await api.fetch(url, { languages: ['en'] });
+      // convert to array of items matching the old expected schema { offset, duration, text }
+      transcript = [...fetchedTranscript].map((item: any) => ({
+        offset: item.start * 1000,
+        duration: item.duration * 1000,
+        text: item.text
+      }));
     } catch (e: any) {
       return NextResponse.json({ error: `Failed to fetch transcript: ${e.message}` }, { status: 400 });
     }
