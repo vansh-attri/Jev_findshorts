@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { YouTubeTranscriptApi, AutoPoTokenProvider } from 'youtube-transcript-nodejs';
+
 import { choice, noul, TypeSafeClient } from '@typesafe-ai/sdk';
 
 const CHUNK_DURATION = 60 * 1000;
@@ -45,15 +45,47 @@ export async function POST(req: Request) {
     let transcript;
     try {
       const videoId = extractVideoId(url);
-      const provider = new AutoPoTokenProvider();
-      const api = new YouTubeTranscriptApi({ poTokenProvider: provider, poTokenFallback: true });
-      const fetchedTranscript = await api.fetch(videoId, { languages: ['en'] });
-      // convert to array of items matching the old expected schema { offset, duration, text }
-      transcript = [...fetchedTranscript].map((item: any) => ({
-        offset: item.start * 1000,
-        duration: item.duration * 1000,
-        text: item.text
-      }));
+      
+      const response = await fetch(`https://youtube-transcript.ai/transcript/${videoId}.txt`);
+      if (!response.ok) {
+        throw new Error(`Transcript API returned ${response.status}`);
+      }
+      
+      const text = await response.text();
+      const lines = text.split('\n');
+      const parsedTranscript = [];
+      
+      for (const line of lines) {
+        const match = line.match(/^\[(?:(\d+):)?(\d+):(\d+)\] (.*)/) || line.match(/^\[(\d+):(\d+)\] (.*)/);
+        if (match) {
+          let offset = 0;
+          let textStr = "";
+          if (match.length === 5) {
+            const h = parseInt(match[1] || '0', 10);
+            const m = parseInt(match[2], 10);
+            const s = parseInt(match[3], 10);
+            offset = (h * 3600 + m * 60 + s) * 1000;
+            textStr = match[4];
+          } else {
+            const m = parseInt(match[1], 10);
+            const s = parseInt(match[2], 10);
+            offset = (m * 60 + s) * 1000;
+            textStr = match[3];
+          }
+          parsedTranscript.push({ offset, text: textStr, duration: 0 });
+        }
+      }
+      
+      if (parsedTranscript.length === 0) {
+         throw new Error("No transcript found for this video");
+      }
+      
+      for (let i = 0; i < parsedTranscript.length; i++) {
+        const nextOffset = i + 1 < parsedTranscript.length ? parsedTranscript[i+1].offset : parsedTranscript[i].offset + 30000;
+        parsedTranscript[i].duration = nextOffset - parsedTranscript[i].offset;
+      }
+      
+      transcript = parsedTranscript;
     } catch (e: any) {
       return NextResponse.json({ error: `Failed to fetch transcript: ${e.message}` }, { status: 400 });
     }
