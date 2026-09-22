@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: ['youtube-transcript-nodejs', 'bgutils-js'],
 };
 
 export default nextConfig;
