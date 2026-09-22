@@ -29,6 +29,11 @@ function chunkTranscript(transcript: any[]) {
   return chunks;
 }
 
+function extractVideoId(url: string): string {
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&]{11})/);
+  return (match && match[1]) ? match[1] : url;
+}
+
 export async function POST(req: Request) {
   try {
     const { url } = await req.json();
@@ -39,9 +44,10 @@ export async function POST(req: Request) {
     // 1. Fetch transcript (force English if possible)
     let transcript;
     try {
+      const videoId = extractVideoId(url);
       const provider = new AutoPoTokenProvider();
       const api = new YouTubeTranscriptApi({ poTokenProvider: provider, poTokenFallback: true });
-      const fetchedTranscript = await api.fetch(url, { languages: ['en'] });
+      const fetchedTranscript = await api.fetch(videoId, { languages: ['en'] });
       // convert to array of items matching the old expected schema { offset, duration, text }
       transcript = [...fetchedTranscript].map((item: any) => ({
         offset: item.start * 1000,
